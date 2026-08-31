@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mr. Theja K V - Timetable Viewer</title>
+    <style>
+        :root {
+            --primary: #0056b3;
+            --success: #28a745;
+            --bg: #f4f6f9;
+            --card-bg: #ffffff;
+            --text: #333333;
+            --muted: #6c757d;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 650px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        header h1 {
+            margin: 0;
+            color: var(--primary);
+            font-size: 1.5rem;
+        }
+        header p {
+            margin: 5px 0 0;
+            color: var(--muted);
+        }
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .live-status {
+            border-left: 5px solid var(--success);
+            background: #e9f7ef;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 8px;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ced4da;
+            font-size: 1rem;
+            background: white;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+        th {
+            background-color: #f8f9fa;
+            color: var(--primary);
+        }
+        tr.active-row {
+            background-color: #d4edda;
+            font-weight: bold;
+        }
+        .free-slot {
+            color: var(--muted);
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Mr. Theja K V</h1>
+        <p>Faculty Timetable Viewer</p>
+    </header>
+
+    <!-- Live Status Card -->
+    <div class="card live-status" id="liveCard">
+        <h3>Live Status</h3>
+        <p id="liveStatusText">Checking current class...</p>
+    </div>
+
+    <!-- Day Order Selection -->
+    <div class="card">
+        <label for="dayOrderSelect">Select Day Order:</label>
+        <select id="dayOrderSelect" onchange="renderTimetable()">
+            <option value="1">Day Order I</option>
+            <option value="2">Day Order II</option>
+            <option value="3">Day Order III</option>
+            <option value="4">Day Order IV</option>
+            <option value="5">Day Order V</option>
+            <option value="6">Day Order VI</option>
+        </select>
+    </div>
+
+    <!-- Full Timetable View for Selected Day -->
+    <div class="card">
+        <h3 id="tableTitle">Schedule for Day Order I</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Hour & Time</th>
+                    <th>Course / Class</th>
+                </tr>
+            </thead>
+            <tbody id="timetableBody">
+                <!-- Dynamically populated -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Time slots definition based on your provided breakdown
+    const timeSlots = [
+        { hour: "I", timeStr: "08:30 - 09:25", start: 830, end: 925 },
+        { hour: "II", timeStr: "09:25 - 10:20", start: 925, end: 1020 },
+        { hour: "III", timeStr: "10:20 - 11:15", start: 1020, end: 1115 },
+        { hour: "IV", timeStr: "11:35 - 12:30", start: 1135, end: 1230 },
+        { hour: "V", timeStr: "12:30 - 13:25", start: 1230, end: 1325 }
+    ];
+
+    // Master timetable mapping exact contents from your screenshot
+    const masterTimetable = {
+        "1": { "I": "Free", "II": "II BMS + STAT + BM", "III": "II CS C", "IV": "Free", "V": "Free" },
+        "2": { "I": "Free", "II": "II CS C", "III": "I AVI", "IV": "Free", "V": "II BMS + STAT + BM" },
+        "3": { "I": "II CS C", "II": "Free", "III": "II BMS + STAT + BM", "IV": "Free", "V": "I AVI" },
+        "4": { "I": "I IT + DS", "II": "Free", "III": "Free", "IV": "II STAT + BM", "V": "II DS" },
+        "5": { "I": "Free", "II": "I STAT + BMS + BM", "III": "Free", "IV": "I IT + DS", "V": "II BMS + STAT + BM" },
+        "6": { "I": "II BMS + STAT + BM", "II": "Free", "III": "II CS C", "IV": "Free", "V": "II DS" }
+    };
+
+    function renderTimetable() {
+        const dayOrder = document.getElementById("dayOrderSelect").value;
+        document.getElementById("tableTitle").innerText = `Schedule for Day Order ${convertToRoman(dayOrder)}`;
+        
+        const tbody = document.getElementById("timetableBody");
+        tbody.innerHTML = "";
+
+        const dailyData = masterTimetable[dayOrder];
+        const currentMinutes = getCurrentMinutes();
+
+        timeSlots.forEach(slot => {
+            const course = dailyData[slot.hour];
+            const isFree = course === "Free";
+            const row = document.createElement("tr");
+
+            // Check if this slot is currently ongoing
+            if (isCurrentSlot(slot, currentMinutes)) {
+                row.classList.add("active-row");
+            }
+
+            row.innerHTML = `
+                <td><strong>Hour ${slot.hour}</strong><br><small>${slot.timeStr}</small></td>
+                <td class="${isFree ? 'free-slot' : ''}">${course}</td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        updateLiveStatus(dailyData);
+    }
+
+    function getCurrentMinutes() {
+        const now = new Date();
+        return now.getHours() * 100 + now.getMinutes(); // Format like 915 for 9:15 AM
+    }
+
+    function isCurrentSlot(slot, currentMinutes) {
+        return currentMinutes >= slot.start && currentMinutes <= slot.end;
+    }
+
+    function updateLiveStatus(dailyData) {
+        const currentMinutes = getCurrentMinutes();
+        const liveText = document.getElementById("liveStatusText");
+        
+        let activeSlot = null;
+        for (let slot of timeSlots) {
+            if (isCurrentSlot(slot, currentMinutes)) {
+                activeSlot = slot;
+                break;
+            }
+        }
+
+        if (activeSlot) {
+            const course = dailyData[activeSlot.hour];
+            if (course === "Free") {
+                liveText.innerHTML = `Currently (Hour ${activeSlot.hour} - ${activeSlot.timeStr}): <strong>Free / No Class</strong>`;
+            } else {
+                liveText.innerHTML = `Ongoing Class (Hour ${activeSlot.hour} - ${activeSlot.timeStr}): <strong style="color:var(--primary);">${course}</strong>`;
+            }
+        } else {
+            liveText.innerHTML = `No class ongoing right now (Outside active college hours or during break).`;
+        }
+    }
+
+    function convertToRoman(num) {
+        const romans = { "1": "I", "2": "II", "3": "III", "4": "IV", "5": "V", "6": "VI" };
+        return romans[num] || num;
+    }
+
+    // Run on load and refresh status every minute
+    renderTimetable();
+    setInterval(renderTimetable, 60000);
+</script>
+
+</body>
+</html>
